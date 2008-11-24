@@ -16,8 +16,8 @@ module Planning
       @predicate==other.predicate && holds?(other.step[p])
     end
   
-    # Tells whether this PredicateInstance holds in another step
-    # (which is represented by just Bindings). In fact it tests
+    # Tells whether this PredicateInstance holds in another step.
+    # It tests
     # whether all its named parameters are bound to the same values
     # or unbound in both places   
     def holds? step, effect
@@ -28,8 +28,8 @@ module Planning
       end
     end
     
-    # Tells whether this PredicateInstance <b>holds <i>partially</i></b> in another step
-    # (which is represented by just Bindings). In fact it tests
+    # Tells whether this PredicateInstance <b>holds <i>partially</i></b> in another step.
+    # It tests
     # whether all its named parameters are bound to the same values
     # or unbound in both places OR (which classifies as <i>partially</i>)
     # a bound value in predicate is not (yet) bound in one of them
