@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operators namespace="Blocks">
+	<!-- 
+		Op(ACTION:Move(b, x, y),
+		PRECOND:On(b,x) A Clear(b) A Clear(y) A !Table(y),
+		EFFECT: On(b,y) A Clear(x) A !On(b,x) A !Clear(y))
+	-->
+	<operator name="Move"
+		arguments="block,from,to">
+		<precondition name="On" arguments="block,from"/>
+		<precondition name="Clear" arguments="block"/>
+		<precondition name="Clear" arguments="to"/>
+		<precondition name="Table" positive="false" arguments="to"/>
+		<effect name="On" arguments="block,to"/>
+		<effect name="Clear" arguments="from"/>
+		<effect name="On" positive="false" arguments="block,from"/>
+		<effect name="Clear" positive="false" arguments="to"/>
+	</operator>
+<!--
+		Op(ACTION:MoveToTable(b, x, table),
+		PRECOND:On(b,x) A Clear(b) A Table(table),
+		EFFECT: On(b, table) A Clear(x) A !On(b,x))
+-->
+	<operator name="MoveToTable"
+		arguments="block,from,table">
+		<precondition name="On" arguments="block,from"/>
+		<precondition name="Clear" arguments="block"/>
+		<precondition name="Table" arguments="table"/>
+		<effect name="On" arguments="block,table"/>
+		<effect name="Clear" arguments="from"/>
+		<effect name="On" positive="false" arguments="block,from"/>
+	</operator>
+
+<!--
+================
+Op(ACTlON:Move(b, x, y),
+PRECOND:On(b,x) A Clear(b) A Clear(y),
+EFFECT: On(b,y) A Clear(x) A !On(b,x) A !Clear(y))
+
+
+conditional effects
+Op(Acеion:Move(b, x, y),
+PRECOND: On(b,x) A Clear(b) A Clear(y),
+EFFECT: On(b,y) A Clear(x) A !On(b,x)
+A !Clear(y) when y != Table)
+
+universal quantification
+Op( Action:Carry(bag, x, y),
+PRECOND:Bag(bag) A At(bag,x),
+EFFECT: At(bag, y), !At(bag, x) A
+ FOR_ANY(i):Item(i) => (At(i, y) A !At(i, x)) when In(i, bag))
+
+
+=================
+
+
+-->	
+	
+</operators>

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<operators namespace="Blocks">
+	<!-- 
+		Op(ACTION:Move(block, from, to),
+		PRECOND:On(block,from) A !E(x, ON(x,block)) A !E(x, ON(x, to) A !Table(to),
+		EFFECT: On(block,to) A !On(block,from))
+	-->
+	<operator name="Move"
+		arguments="block,from,to">
+		<preconditions>
+			<predicate name="On" arguments="block,from"/>
+			<not-exists var="x">
+				<predicate name="On" arguments="x,block"/>
+			</not-exists>
+			<not-exists var="x">
+				<predicate name="On" arguments="x,to"/>
+			</not-exists>
+			<predicate name="Table" positive="false" arguments="to"/>
+		</preconditions>
+		<effects>
+			<predicate name="On" arguments="block,to"/>
+			<predicate name="On" positive="false" arguments="block,from"/>
+		</effects>
+	</operator>
+<!--
+		Op(ACTION:MoveToTable(block, from, table),
+		PRECOND:On(block,from) A !E(x, ON(x,block)) A Table(table),
+		EFFECT: On(block, table) A !On(block,from))
+-->
+	<operator name="MoveToTable"
+		arguments="block,from,table">
+		<preconditions>
+			<predicate name="On" arguments="block,from"/>
+			<not-exists var="x">
+				<predicate name="On" arguments="x,block"/>
+			</not-exists>
+			<predicate name="Table" arguments="table"/>
+		</preconditions>
+		<effects>
+			<predicate name="On" arguments="block,table"/>
+			<predicate name="On" positive="false" arguments="block,from"/>
+		</effects>
+	</operator>
+
+<!--
+================
+Op(ACTlON:Move(b, x, y),
+PRECOND:On(b,x) A Clear(b) A Clear(y),
+EFFECT: On(b,y) A Clear(x) A !On(b,x) A !Clear(y))
+
+
+conditional effects
+Op(Acеion:Move(b, x, y),
+PRECOND: On(b,x) A Clear(b) A Clear(y),
+EFFECT: On(b,y) A Clear(x) A !On(b,x)
+A !Clear(y) when y != Table)
+
+universal quantification
+Op( Action:Carry(bag, x, y),
+PRECOND:Bag(bag) A At(bag,x),
+EFFECT: At(bag, y), !At(bag, x) A
+ FOR_ANY(i):Item(i) => (At(i, y) A !At(i, x)) when In(i, bag))
+
+
+=================
+
+
+-->	
+	
+</operators>

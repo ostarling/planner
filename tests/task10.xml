@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<task>
+	<operators file="operators.xml"/>
+	
+	<initial>
+		<!--
+		  A  C
+		  B  D
+		==Table===	-->
+		<fact name="Table" arguments="Table"/>
+		<fact name="On" arguments="A,B"/>
+		<fact name="On" arguments="C,D"/>
+		<fact name="On" arguments="B,Table"/>
+		<fact name="On" arguments="D,Table"/>
+	</initial>
+	
+	<goal>
+		<!-- 
+		   D
+		   A
+		   B
+		   C
+		==Table== -->
+		<fact name="On" arguments="D,A"/>
+		<fact name="On" arguments="A,B"/>
+		<fact name="On" arguments="B,C"/>
+		<fact name="On" arguments="C,Table"/>
+	</goal>
+
+</task>
