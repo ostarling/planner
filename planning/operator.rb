@@ -20,15 +20,28 @@ module Planning
         @name = name
         @parameters = map_vars parameters
         @preconditions = preconditions.map do |pr|
-          Predicate.new pr.name, map_vars(pr.variables), pr.positive 
+          case pr
+            when Predicate: map_predicate pr
+            when ExistentialConstraint: map_existential pr
+            else raise "Unsupported precondition {@pr.inspect}" 
+          end
         end
         @effects = effects.map do |pr|
-          Predicate.new pr.name, map_vars(pr.variables), pr.positive 
+          map_predicate pr 
         end
-        @var_names.each_with_index do |index, name|
+        @var_names.each_with_index do |name, index|
           @name_idx_map[name] = index
         end
     end  
+    
+    def map_predicate pr
+      Predicate.new pr.name, map_vars(pr.variables), pr.positive
+    end
+
+    def map_existential ex
+      ExistentialConstraint.new map_predicate(ex.predicate), map_vars(ex.vars)
+    end
+    
   
     # Maps an array of variable names to an array of 
     # Argument objects. If Argument objects are 
@@ -92,6 +105,10 @@ module Planning
     
     def to_s
       name + "(" + parameters.join(", ")+")"      
+    end
+    
+    def dump
+        self.to_s + ": precond {" + @preconditions.join(",") + "}, effects {"  + @effects.join(',') + "}"
     end
   end
   

@@ -23,21 +23,22 @@ class OrderingData
   attr_reader :prev_version, :version
   attr_writer :order
   
-  def initialize prev_version, version, order=nil, next_ords=nil#, prev_ords=nil  
+  def initialize prev_version, version, order=nil, next_ords=nil, prev_ords=nil  
     @prev_version = prev_version
-    if prev_version.nil? && (order.nil? || next_ords.nil?)# || prev_ords.nil? )
-      raise "Invalid arguments: either prev_version or both order and next_ords should be non-nil"
-#      raise "Invalid arguments: either prev_version or order, next_ords and prev_ords should be non-nil"
+    if prev_version.nil? && (order.nil? || next_ords.nil? || prev_ords.nil? )
+      #raise "Invalid arguments: either prev_version or both order and next_ords should be non-nil"
+      raise "Invalid arguments: either prev_version should be non-nil "+
+            "or order, next_ords and prev_ords all should be non-nil"
     end
     
     @version = version
     @order = order
     @next_ords = next_ords
-    #@prev_ords = prev_ords
+    @prev_ords = prev_ords
   end
   
-  def chain version, order, next_ords #, prev_ords
-    OrderingData.new self, version, order, next_ords #, prev_ords
+  def chain version, order, next_ords, prev_ords
+    OrderingData.new self, version, order, next_ords, prev_ords
   end
   
   def order
@@ -46,9 +47,9 @@ class OrderingData
   def next_ords
     @next_ords.nil? ? @prev_version.next_ords : @next_ords 
   end
-#  def prev_ords
-#    @prev_ords.nil? ? @prev_version.prev_ords : @prev_ords 
-#  end
+  def prev_ords
+    @prev_ords.nil? ? @prev_version.prev_ords : @prev_ords 
+  end
   
   def order_unset?
     @order.nil?
@@ -56,9 +57,9 @@ class OrderingData
   def next_ords_unset?
     @next_ords.nil?
   end
-#  def prev_ords_unset?
-#    @prev_ords.nil?
-#  end
+  def prev_ords_unset?
+    @prev_ords.nil?
+  end
   
 end
 
@@ -72,8 +73,8 @@ class Ordering
   def initialize orderings, step, order, version
     @orderings = orderings
     @step = step
-    #                     prev_version, version, order, next_ords #, prev_ords  
-    @data = OrderingData.new nil, version, order, [] #, []  
+    #                     prev_version, version, order, next_ords, prev_ords  
+    @data = OrderingData.new nil, version, order, [], []  
     @trace = 0
   end
   
@@ -81,7 +82,7 @@ class Ordering
     if @data.order_unset? && @data.version==@orderings.cur_version
       @data.order = value
     else
-      @data = @data.chain @orderings.cur_version, value, nil #, nil 
+      @data = @data.chain @orderings.cur_version, value, nil, nil 
     end
   end
   
@@ -93,9 +94,9 @@ class Ordering
     @data.next_ords
   end
   
-#  def prev_ords
-#    @data.prev_ords
-#  end
+  def prev_ords
+    @data.prev_ords
+  end
   
   def add_next_ords ord
     unless @data.next_ords.include? ord
@@ -105,25 +106,25 @@ class Ordering
       if @data.next_ords_unset? && @data.version==@orderings.cur_version
         @data.next_ords = new_next_ords
       else
-        @data = @data.chain @orderings.cur_version, nil, new_next_ords #, nil
+        @data = @data.chain @orderings.cur_version, nil, new_next_ords, nil
       end
       
-      #add_prev_ords self
+      ord.add_prev_ords self
     end
   end
   
-#private
-#  def add_prev_ords ord
-#    new_prev_ords=[]
-#    new_prev_ords.push *(@data.prev_ords)
-#    new_prev_ords << ord
-#    if @data.prev_ords_unset? && @data.version==@orderings.cur_version
-#      @data.prev_ords = new_prev_ords
-#    else
-#      @data = @data.chain @orderings.cur_version, nil, nil, new_prev_ords
-#    end
-#  end
-#public
+private
+  def add_prev_ords ord
+    new_prev_ords=[]
+    new_prev_ords.push *(@data.prev_ords)
+    new_prev_ords << ord
+    if @data.prev_ords_unset? && @data.version==@orderings.cur_version
+      @data.prev_ords = new_prev_ords
+    else
+      @data = @data.chain @orderings.cur_version, nil, nil, new_prev_ords
+    end
+  end
+public
   
   def to_s
     "{step #{@step} @#{trace}, "+
@@ -165,11 +166,17 @@ end
 
 class Orderings
   
-  def initialize
+  def initialize start, finish
     @steps = {}
     @version = 0
     @order_step = 10
     @trace=0
+    @start = start
+    @finish = finish
+    # it is implied that start is before finish
+    #ostart = get_ordering @start
+    #ofinish = get_ordering @finish
+    #ostart.add_next_ords ofinish
   end
   
   def cur_version
@@ -210,8 +217,74 @@ class Orderings
 #    end
 #  end
   
+
+  # returns 
+  #  1 - if the step is after 'relative_to' step
+  # -1 - if the step is before 'relative_to' step
+  #  0 - if there is no defined ordering relation between these steps
+  def get_relative_position step, relative_to
+    
+    #this method must not be invoked with relative_to equal to @start or @finish
+    raise if [@start,@finish].include? relative_to
+    
+    #handle special cases
+    return -1 if step==@start
+    return 1 if step==@finish
+    
+    ostep = get_ordering step
+    orel = get_ordering relative_to
+    
+    if ostep.order < orel.order
+      #'step' can possibly be before
+      res = find_before orel, ostep
+      return res.nil? ? 0 : -1
+
+    elsif ostep.order > orel.order
+      #'step' can possibly be after
+      res = find_after orel, ostep
+      return res.nil? ? 0 : 1
+    
+    else
+      #'step' is surely unrelated
+      return 0      
+    end
+    
+
+  end
   
+  def find_after obase, ostep
+      obase.next_ords.each do |o|
+        return o if o.step = ostep.step
+        if o.order < ostep.order
+          res = find_after o, ostep
+          return res unless res.nil?
+        end
+      end
+      return nil
+  end
+  
+  def find_before obase, ostep
+      obase.prev_ords.each do |o|
+        return o if o.step = ostep.step
+        if o.order > ostep.order
+          res = find_before o, ostep
+          return res unless res.nil?
+        end
+      end
+      return nil
+  end
+
   def add step1, step2
+    
+    # check obvious ordering violations
+    raise OrderingException.new("Can't put @{step2} after the GOAL step") if step1==@finish
+    raise OrderingException.new("Can't put @{step1} before the INITIAL step") if step2==@start
+    
+    # don't actually add orderings like AFTER INITIAL and BEFORE GOAL
+    # as it is implied and enforced for all other steps 
+    if step1==@start || step2==@finish
+      return
+    end
     
     @trace += 1 # allocate a new unique trace value
     @version += 1
@@ -286,9 +359,147 @@ class Orderings
     
   end
   
+end
+
+
+class IteratorPathElement
+  attr_accessor
+  def initialise orderings
+    @orderings = orderings
+    @position = 0
+  end
+  def has_more?
+    @position+1 < @orderings.size
+  end
+  def next
+    if has_more?
+      @position += 1
+      @orderings[@position]
+    else
+      nil
+    end
+  end
+  #returns the current ordering
+  def cur_ordering
+    @orderings
+  end
+end
+
+class OrderingNetIterator
+
+  def initialize base_ordering, method_name=:prev_ords
+      @base = base_ordering
+      @path = []  #corresponds to  
+      @method_name = method_name
+  end  
+  
+  def get_data ordering
+    ordering.__send__(@method_name)
+  end
+  
+  #moves pointer to the next step in the tree
+  #returns the next Ordering element or nil no more elements left
+  def next
+    # if the path is empty attempt create the first path element 
+    if @path.empty?
+      ords = get_data @base
+      if ords.empty?
+        # if the base ordering has no related orderings to traverse
+        # return false 
+        return nil
+      else
+        #otherwise create the path element 
+        @path << IteratorPathElement.new(ords[0])
+        return ords[0] 
+      end     
+    else
+      # The path is not empty, we have to advance to the next element
+      cur_elem = @path[-1]
+      # We use the depth-first algorithm, check whether we can deepen first
+      ords = get_data(cur_elem.cur_ordering)
+      unless ords.empty?
+        # deepen the path
+        @path << IteratorPathElement.new(ords[0])
+        return ords[0]
+      else
+        # move to next element
+        
+        # remove path elements which have enumerated already all their children  
+        until cur_elem.has_more?
+          @path.pop
+          if @path.empty?
+            return nil
+          end
+          cur_elem = @path[-1]
+        end
+        
+        #actually move to the next sibling element
+        return cur_element.next
+      end
+    end
+  end
+  
+  def get_current
+    return nil if @path.size==0
+    
+    cur_elem = @path[-1]
+    get_data(cur_elem[:ord])[cur_elem[:idx]]
+          
+  end
   
 end
 
+
+class LazyTreeLinearizer
+
+  def initilize iterator
+    @iterator = iterator
+    @linearized = []
+  end
+    
+  def get idx
+    raise if idx<0
+    if idx<=@linearized.size
+      @linearized[idx]
+    else
+      i=@linearized.size
+      while i<=idx
+        elem = @iterator.next
+        unless elem.nil?
+          @linearized << elem
+          i += 1
+        else
+          return nil
+        end
+      end
+      return @linearized[-1]
+    end
+  end
+end
+
+class LinearizerIterator
+  def initalize linearizer 
+    @linearizer = linearizer
+    self.reset
+  end
+  def reset
+    @position = 0    
+  end
+  def next
+    res = @linearizer.get @position
+    @position +=1 unless res.nil?
+    res
+  end
+end
+
+class FileringLinearizer
+
+  def initialize @linearizer_iterator 
+    @cached = []
+  end
+  
+    
+end
 
 end
 

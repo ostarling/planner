@@ -53,6 +53,14 @@ module Planning
       @condition.step.remove_link @condition
     end
     
+    def threatened_by? step
+      unless @initial==step || @condition.step==step
+          step.effects? @condition.inverse
+      else
+          false
+      end
+    end
+    
     def to_s
       "#{initial}--(#{@condition})-->#{@condition.step}"
     end

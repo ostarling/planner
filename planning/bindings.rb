@@ -73,6 +73,7 @@ module Planning
     def all_set? arg
       case arg
         when Predicate: all_set? arg.variables 
+        when ExistentialConstraint: all_set? arg.predicate
         else arg.all?{ |var| set? var }
       end
     end
@@ -83,6 +84,7 @@ module Planning
     def all_const? arg
       case arg
         when Predicate: all_const? arg.variables 
+        when ExistentialConstraint: all_const? arg.predicate
         else arg.all?{ |var| is_constant?(get_value(var)) }
       end
     end

@@ -65,8 +65,17 @@ module Planning
 #        p @links.has_key?(pre)
         not (@links.has_key? pre)
       end
-      PredicateInstance.new(c, self) unless c.nil?
+      make_instance(c) unless c.nil?
     end
+    
+    def make_instance condition
+        case condition
+        when Predicate: PredicateInstance.new(c, self) 
+        when ExistentialConstraint: ExistentialConstraintInstance.new(c, self)
+        else raise
+        end      
+    end
+    
     
     def not_met_conditions
       @operator.preconditions.select { |pre|

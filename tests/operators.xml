@@ -9,10 +9,10 @@
 		arguments="block,from,to">
 		<preconditions>
 			<predicate name="On" arguments="block,from"/>
-			<not-exists var="x">
+			<not-exists vars="x">
 				<predicate name="On" arguments="x,block"/>
 			</not-exists>
-			<not-exists var="x">
+			<not-exists vars="x">
 				<predicate name="On" arguments="x,to"/>
 			</not-exists>
 			<predicate name="Table" positive="false" arguments="to"/>
@@ -31,7 +31,7 @@
 		arguments="block,from,table">
 		<preconditions>
 			<predicate name="On" arguments="block,from"/>
-			<not-exists var="x">
+			<not-exists vars="x">
 				<predicate name="On" arguments="x,block"/>
 			</not-exists>
 			<predicate name="Table" arguments="table"/>

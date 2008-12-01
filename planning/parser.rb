@@ -33,7 +33,17 @@ class Parser
   def parse_predicate elem
     Predicate.new *(parse_predicate_or_fact(elem))
   end
+
+  def parse_notexists elem
+      args = parse_arguments elem[:vars]
+      pred = parse_predicate((elem/"predicate")[0])
+      ExistentialConstraint.new pred, args
+  end
   
+  def parse_effect elem
+    parse_predicate elem
+  end
+    
   def parse_initial_fact elem, step
     step.add_effect *(parse_predicate_or_fact(elem))
   end
@@ -42,16 +52,18 @@ class Parser
     step.add_precondition *(parse_predicate_or_fact(elem))
   end
   
+  
   def parse_operators filename
     operators = []
     doc = Hpricot.parse(File.read(filename))
     (doc/:operator).each do |xml_op|
       
-      preconds_node = xml_op/"preconditions"
-      effects_node = xml_op/"effects"
+      preconds_node = xml_op/:preconditions
+      effects_node = xml_op/:effects
 
-      preconds = preconds_node/"*".collect{|n| parse_precondition n}
-      effects = effects_node/"predicate".collect{|n| parse_predicate n}
+      preconds = (preconds_node/"predicate").collect{|n| parse_predicate n}
+      preconds.push(*( (preconds_node/"not-exists").collect{|n| parse_notexists n}))
+      effects = (effects_node/"predicate").collect{|n| parse_predicate n}
       args = parse_arguments xml_op[:arguments]
       name = xml_op[:name]
       

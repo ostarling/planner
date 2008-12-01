@@ -31,6 +31,7 @@ end
 
 require File.join(File.dirname(__FILE__), 'planning/predicate')
 require File.join(File.dirname(__FILE__), 'planning/operator')
+require File.join(File.dirname(__FILE__), 'planning/existential')
 require File.join(File.dirname(__FILE__), 'planning/condition')
 require File.join(File.dirname(__FILE__), 'planning/bindings')
 require File.join(File.dirname(__FILE__), 'planning/step')

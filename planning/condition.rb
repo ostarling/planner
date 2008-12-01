@@ -96,7 +96,7 @@ module Planning
     unless expected==actual
         raise StandardError, "Expected '#{expected}', but got #{actual}", caller[0..-2]
     else
-      puts "OK"      
+      #puts "OK"      
     end
   end
   

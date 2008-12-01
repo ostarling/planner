@@ -40,7 +40,7 @@ class Predicate
       
       @idx = @@name_index[name]
       if @idx.nil?
-        p "\"#{name}\" not in table"
+        #p "\"#{name}\" not in table"
         if name==""
           raise
         end

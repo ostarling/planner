@@ -8,6 +8,46 @@
 module Planning
 
   class Planner
+
+    # The planner maintains a list of unresolved steps (steps which do not have links for all their preconditions)
+    # Initially it contains the GOAL step. Newly created steps are added to the end of this list; this
+    # results in width-first plan search.
+    # Matching precondition search (starts in satisfy_condition method) is optimised in the following way
+    #  1. first it searches in steps which are aleady ordered to be _before_ the current step
+    #     directly or indirectly (due to transitivity of ordering). This set of steps is beneficial
+    #     as no new oredering constrains have to be created if a suitable step is found. During the 
+    #     traversal all these steps are collected in a set which will be used in step 3. 
+    #  2. all steps which are ordered _after_ (again directly and indirectly) the current steps are
+    #    collected into a set of exclude nodes, as these are the nodes which can't be reordered 
+    #    to precede the current step.
+    #  3. it searches in unrelated steps; it iterates through a global list of steps and exludes already
+    #   seen _before_ and _after_ steps. Steps will be processed starting from older ones. (This feels to be 
+    #   better than the reversed order, no claims though).
+    #
+    #  For simple predicate match this search is done in 2 passes. The first one is used for compelte match
+    #  the second one for the incomplete. The second pass may use already created node lists for steps 1 and 2
+    #  instead of traversing the orderings graph. When resolving threats the steps in _after_ can be safely ignored
+    # 
+    #  For existential constraints (e.g. !E x: ON(A,x))the search is done similarly - first in _before_ 
+    #  set and then in unrelated steps (after building the _after_ set, of course). The search algorithm 
+    # locates steps which: 
+    #   * (type A, threat steps) effect a predicate which breaks the current non-existential precondition 
+    #     (e.g. ON(A,B)). These steps must be either reordered to be after the current step, or must be 
+    #     "screened" with a step which neutralises the unwanted predicate
+    #   * (type B, protective steps) effect a not-predicate (e.g. !ON(A,B)), which can be used for screening 
+    #     (e.g. for ON(A,B)) as it neutralises any earlier positive predicates with the same set of parameters. 
+    #     For all steps which are _before_ this step these positive predicate effects are ignored. This is done 
+    #     by maintaining a current effective filter of screening predicates.
+    # The goal of satisfying an existential constraint is netralising all A-steps. This is done in the following
+    # way. (in all cases B-steps are first searched in _before_ set, then in unrelated set).
+    #   1. A-steps in _before_ set can't be reordered, so for them a B-step is searched first in
+    #       _before_ set, then in unrelated set. If none can be found a new protective step is created
+    #   2. For A-steps in unrelated set reordering is attempted first. Then B-steps are searched in
+    #        _before_ set, then in unrelated set. If none can be found a new protective step is created
+    #  Once all A-type steps are screened the contraint is satisfied.
+     
+    
+    attr_reader :operators
     
     def initialize operators, start, finish
       @operators = operators # all applicable operators
@@ -17,10 +57,16 @@ module Planning
     end
     
     def reset
-      @steps = [] # steps currently in the plan
-      @orderings = Orderings.new # Si > Sj,  stores pairs as [Si, Sj]
-      @links = {}    # Si -(c)-> Sj  : key:c, value:Link(Si, c, Sj)
-      @unresolved_steps=[]
+      # steps currently in the plan,
+      #make minimal plan
+      @steps = [@start, @finish]
+      # Si > Sj,  stores pairs as [Si, Sj]
+      # init orderings
+      @orderings = Orderings.new  @start, @finish 
+      # Si -(c)-> Sj  : key:c, value:Link(Si, c, Sj)
+      @links = {}    
+      
+      @unresolved_steps=[@finish]
       @current_unresolved_step_idx = 0
     end
     
@@ -28,10 +74,6 @@ module Planning
     def find_plan max_steps=9999
       reset          
       @max_steps = max_steps
-      #make minimal plan
-      @steps << @start << @finish
-      add_ordering @start, @finish
-      @unresolved_steps << @finish
       
       dump
       
@@ -91,6 +133,11 @@ module Planning
         @orderings.dump
     end
     
+    
+    def get_current_step
+      step = @unresolved_steps[ @current_unresolved_step_idx ]
+      
+    end
     
     def select_subgoal
       #pick a plan step Sneed from STEPS(plan)
@@ -211,15 +258,16 @@ module Planning
     def satisfy_check_and_deepen step, condition, link, new_step=nil
       begin
           version = @orderings.cur_version if version.nil?
-          unless new_step.nil?
-            add_ordering @start, new_step
-            add_ordering new_step, @finish
-          end
+#         TODO check that we do not rely on these orderings any more          
+#          unless new_step.nil?
+#            add_ordering @start, new_step
+#            add_ordering new_step, @finish
+#          end
           add_ordering step, condition.step
           resolve_threats
       rescue OrderingException
         restore_plan link, version, new_step
-        false
+        return false
       else
         move_next = condition.step.satisfied?
         @current_unresolved_step_idx += 1 if move_next
@@ -228,45 +276,61 @@ module Planning
           @current_unresolved_step_idx -= 1 if move_next  
           restore_plan link, version, new_step
         end
-        res
+        return res
       end 
     end
       
     
     def satisfy_condition condition
+        case condition
+        when PredicateInstance: satisfy_predicate_condition condition
+        when ExistentialConstraintInstance: satisfy_existential_constraint condition 
+        else raise 
+        end      
+    end
+      
+    def satisfy_predicate_condition condition 
       
       step = satisfy_with_existing_step(condition) 
       
       unless step.nil?
         puts "Satisified with an existing step:  #{condition} with #{step}"
-        true
-      else
-        step = satisfy_partially_with_existing_step(condition)
-        unless step.nil?
-          puts "Satisified with an existing step partially:  #{condition} with #{step}"
-          true
-        else
-          step = satisfy_with_new_step(condition)
-          unless step.nil?
-            puts "Satisified with a NEW step: #{condition} - #{step}"
-            true
-          else
-            puts "Could not satisfy #{condition}"
-            false
-          end
-        end
+        return true
       end
+      
+      step = satisfy_partially_with_existing_step(condition)
+      unless step.nil?
+        puts "Satisified with an existing step partially:  #{condition} with #{step}"
+        return true
+      end
+      
+      step = satisfy_with_new_step(condition)
+      unless step.nil?
+        puts "Satisified with a NEW step: #{condition} - #{step}"
+        return true
+      end
+      
+      puts "Could not satisfy #{condition}"
+      return false
     end
+    
+    
+    def satisfy_existential_constraint constraint
+      constraint.step
+      constraint.predicate
+            
+    end
+    
     
     def resolve_threats
       
       puts "Resolving threats..."
-      #for each Sthreat that threatens a link Si-(c)->Sj in LlNKS(plan)
+      #for each Sthreat that threatens a link Si-(c)->Sj in LINKS(plan)
       @steps.each{|step|
           @links.each{|key, link|
             # resolved_threat? should be faster, so check it first
             unless link.resolved_threat? step
-              if threatens? step, link
+              if link.threatend_by? step
                 
                 puts "Resolving threat to #{link} by #{step}"
                   
@@ -277,20 +341,24 @@ module Planning
                 #     Demotion: Add sj -< step to ORDERINGS(plan)
                 #TODO randomise or add euristics which determine whether promostion
                 # or demotion to try first
-                promotion = true
+                promotion = rand(2)==1 ? true : false
+                first_time = true
                 begin
                   if promotion
+                    puts "Trying promotion..."
                     add_ordering step, si
                   else
+                    puts "Trying demotion..."
                     add_ordering sj, step                
                   end
                 rescue OrderingException
-                  if promotion
-                      puts "Promotion failed, trying demotion"
-                      promotion = false
+                  if first_time
+                      first_time = false
+                      puts "...failed, trying the opposite option"
+                      promotion = !promotion
                       retry
                   else
-                      puts "Could not resolve threat to #{link} by #{step}"
+                      puts "...failed. Could not resolve threat to #{link} by #{step}"
                       #if not CONSISTENT(plan) then fail
                       ## re-raise OrderingException so that it is
                       ## properly handled upper on the call stack
@@ -307,14 +375,6 @@ module Planning
       puts "Resolved all current threats"
     end
     
-    def threatens? step, link
-      unless link.initial==step || link.condition.step==step
-        step.effects? link.condition.inverse
-      else
-        false
-      end
-    end
-  
     # creates a new link and returns it 
     def add_link step, condition
       # need to review whether we need links as a has table of this kind
